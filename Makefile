@@ -1,5 +1,5 @@
-tcpip: tcpip.c
-	gcc -o tcpip tcpip.c
+tcpip: main.c
+	gcc -o tcpip main.c tcpip.c
 
 clean:
 	rm tcpip
