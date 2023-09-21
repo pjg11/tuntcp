@@ -5,24 +5,39 @@
 #include <stdio.h>
 #include "tcpip.h"
 
-struct ipv4 * IPV4(char *contents, uint8_t protocol, char *daddr) {
+struct ipv4 * IPV4(size_t len_contents, uint8_t protocol, char *daddr) {
 	
 	struct ipv4 * ip = calloc(1, sizeof(struct ipv4));
 
 	ip->version_ihl = 4 << 4 | 5;
 	ip->tos = 0;
-	ip->len = htons(20 + strlen(contents));
+	ip->len = htons(20 + len_contents);
 	ip->id = htons(1);
-	ip->frag_offset = htons(0);
+	ip->frag_offset = 0;
 	ip->ttl = 64;
 	ip->proto = protocol;
-	ip->checksum = htons(0);
+	ip->checksum = 0;
 	inet_pton(AF_INET, "10.0.2.15", &(ip->src));
 	inet_pton(AF_INET, daddr, &(ip->dst));
 
 	ip->checksum = htons(checksum(ip, sizeof(*ip)));
 
 	return ip;
+}
+
+struct icmpecho * ICMPEcho(uint16_t seq) {
+
+	struct icmpecho * echo = calloc(1, sizeof(struct icmpecho));
+
+	echo->type = 8;
+	echo->code = 0;
+	echo->checksum = 0;
+	echo->id = htons(12345);
+	echo->seq = htons(seq);
+
+	echo->checksum = htons(checksum(echo, sizeof(*echo)));
+	return echo;
+
 }
 
 uint16_t checksum(void *data, size_t count) {

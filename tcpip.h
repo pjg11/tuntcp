@@ -21,11 +21,18 @@ struct ipv4 {
 	uint32_t	dst;
 };
 
-// IP functions
-struct ipv4 * IPV4(char *contents, uint8_t protocol, char *daddr);
-uint16_t checksum(void *data, size_t count);
+struct icmpecho {
+   uint8_t 	type;
+   uint8_t 	code;
+   uint16_t checksum;
+   uint16_t id;
+   uint16_t seq;
+};
 
-// General functions
+struct ipv4 * IPV4(size_t len_contents, uint8_t protocol, char *daddr);
+struct icmpecho * ICMPEcho(uint16_t seq);
+
+uint16_t checksum(void *data, size_t count);
 void print_bytes(void *bytes, size_t len);
 void bytes(void *data, char *dst, size_t len);
 
