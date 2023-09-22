@@ -35,5 +35,6 @@ struct icmpecho * ICMPEcho(uint16_t seq);
 uint16_t checksum(void *data, size_t count);
 void print_bytes(void *bytes, size_t len);
 void bytes(void *data, char *dst, size_t len);
+int openTun(char *dev);
 
 #endif
