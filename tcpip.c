@@ -12,10 +12,8 @@
 
 #define IFNAMSIZ 16
 
-struct ipv4 * IPV4(size_t len_contents, uint8_t protocol, char *daddr) {
+void IPV4(size_t len_contents, uint8_t protocol, char *daddr, struct ipv4 * ip) {
 	
-	struct ipv4 * ip = calloc(1, sizeof(struct ipv4));
-
 	ip->version_ihl = 4 << 4 | 5;
 	ip->tos = 0;
 	ip->len = htons(20 + len_contents);
@@ -28,13 +26,9 @@ struct ipv4 * IPV4(size_t len_contents, uint8_t protocol, char *daddr) {
 	inet_pton(AF_INET, daddr, &(ip->dst));
 
 	ip->checksum = checksum(ip, sizeof(*ip));
-
-	return ip;
 }
 
-struct icmpecho * ICMPEcho(uint16_t seq) {
-
-	struct icmpecho * echo = calloc(1, sizeof(struct icmpecho));
+void ICMPEcho(uint16_t seq, struct icmpecho * echo) {
 
 	echo->type = 8;
 	echo->code = 0;
@@ -43,31 +37,27 @@ struct icmpecho * ICMPEcho(uint16_t seq) {
 	echo->seq = htons(seq);
 
 	echo->checksum = checksum(echo, sizeof(*echo));
-	return echo;
 
 }
 
-struct tcp * TCP(uint16_t sport, uint16_t dport, uint32_t seq, uint32_t ack, uint8_t flags, uint32_t options) {
+void TCP(uint16_t sport, uint16_t dport, uint32_t seq, uint32_t ack, uint8_t flags, uint32_t options, struct tcp * tcp) {
 
-	struct tcp * t = calloc(1, sizeof(struct tcp));
+	tcp->sport = htons(sport);
+	tcp->dport = htons(dport);
+	tcp->seq = htonl(seq);
+	tcp->ack = htonl(ack);
+	tcp->rsvd_offset = 6 << 4;
 
-	t->sport = htons(sport);
-	t->dport = htons(dport);
-	t->seq = htonl(seq);
-	t->ack = htonl(ack);
-	t->rsvd_offset = 6 << 4;
+	tcp->flags = flags;
+	tcp->win = htons(65535);
+	tcp->checksum = 0;
+	tcp->urp = 0;
 
-	t->flags = flags;
-	t->win = htons(65535);
-	t->checksum = 0;
-	t->urp = 0;
+	tcp->options = htonl(options);
 
-	t->options = htonl(options);
-
-	return t;
 }
 
-void * make_tcp_packet(struct ipv4 * i, struct tcp * t, char* p) {
+void make_tcp_packet(struct ipv4 * i, struct tcp * t, char* p) {
 
 	struct pseudoheader * ph = calloc(1, sizeof(struct pseudoheader));
 	ph->src = i->src;

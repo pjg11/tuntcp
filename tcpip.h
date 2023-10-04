@@ -63,10 +63,10 @@ struct pseudoheader {
 	uint16_t	tcp_len;
 };
 
-struct ipv4 * IPV4(size_t len_contents, uint8_t protocol, char *daddr);
-struct icmpecho * ICMPEcho(uint16_t seq);
-struct tcp * TCP(uint16_t sport, uint16_t dport, uint32_t seq, uint32_t ack, uint8_t flags, uint32_t options);
-void * make_tcp_packet(struct ipv4 * i, struct tcp * t, char *p);
+void IPV4(size_t len_contents, uint8_t protocol, char *daddr, struct ipv4 * ip);
+void ICMPEcho(uint16_t seq, struct icmpecho * echo);
+void TCP(uint16_t sport, uint16_t dport, uint32_t seq, uint32_t ack, uint8_t flags, uint32_t options, struct tcp * tcp);
+void make_tcp_packet(struct ipv4 * i, struct tcp * t, char *p);
 
 uint16_t checksum(void *data, size_t count);
 void print_bytes(void *bytes, size_t len);
