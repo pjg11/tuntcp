@@ -57,31 +57,46 @@ void TCP(uint16_t sport, uint16_t dport, uint32_t seq, uint32_t ack, uint8_t fla
 
 }
 
-void make_tcp_packet(struct ipv4 * i, struct tcp * t, char* p) {
+void send_tcp_packet(char *dest, int tun, uint8_t flags, uint32_t seq, uint32_t ack, uint16_t sport, uint16_t dport) {
 
-	struct pseudoheader * ph = calloc(1, sizeof(struct pseudoheader));
-	ph->src = i->src;
-	ph-> dst = i->dst;
-	ph->proto = i->proto;
-	ph->tcp_len = htons(ntohs(i->len) - 20); // confused about this
+	struct tcp * tcp = calloc(1, sizeof(*tcp));
+	TCP(sport, dport, seq, ack, flags, OPT_MSS, tcp);
+
+	struct ipv4 * ip = calloc(1, sizeof(*ip));
+	IPV4(sizeof(*tcp), PROTO_TCP, dest, ip);
+
+	tcp->checksum = tcp_checksum(ip,tcp);
+
+	size_t size = sizeof(*ip) + sizeof(*tcp);
+	char packet[size];
+	memcpy(packet, ip, sizeof(*ip));
+	memcpy(packet + sizeof(*ip), tcp, sizeof(*tcp));
 	
-	size_t size = sizeof(*ph) + sizeof(*t);
+	free(tcp);
+	free(ip);
+
+	write(tun, packet, size);
+}
+
+uint16_t tcp_checksum(struct ipv4 *ip, struct tcp *tcp) {
+	struct pseudoheader * ph = calloc(1, sizeof(struct pseudoheader));
+	ph->src = ip->src;
+	ph-> dst = ip->dst;
+	ph->proto = ip->proto;
+	ph->tcp_len = htons(ntohs(ip->len) - 20); // confused about this
+	
+	size_t size = sizeof(*ph) + sizeof(*tcp);
 
 	char sum_data[size];
 	memset(sum_data, 0, size);
 	
 	to_bytes(ph, sum_data, sizeof(*ph));
-	to_bytes(t, sum_data + sizeof(*ph), sizeof(*t));
-
-	t->checksum = checksum(sum_data, size);
+	to_bytes(tcp, sum_data + sizeof(*ph), sizeof(*tcp));
 
 	free(ph);
-
-	to_bytes(i, p, sizeof(*i));
-	to_bytes(t, p + sizeof(*i), sizeof(*t));
+	
+	return checksum(sum_data, size);
 }
-
-
 
 uint16_t checksum(void *data, size_t count) {
 

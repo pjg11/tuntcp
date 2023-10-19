@@ -21,6 +21,33 @@
 #define OPT_NOP 1
 #define OPT_MSS (2 << 8 | 4) << 16 | 1460
 
+enum tcp_states {
+	TCP_LISTEN,
+	TCP_SYN_SENT,
+	TCP_SYN_RECEIVED,
+	TCP_ESTABLISHED,
+	TCP_FIN_WAIT_1,
+	TCP_FIN_WAIT_2,
+	TCP_CLOSE_WAIT,
+	TCP_CLOSING,
+	TCP_LAST_ACK,
+	TCP_TIME_WAIT,
+	TCP_CLOSED
+};
+
+enum event_types {
+    OPEN,
+    SEND,
+    RECEIVE,
+    CLOSE,
+	ABORT,
+	STATUS,
+    SEGMENT_ARRIVES,
+    USER_TIMEOUT,
+    RT_TIMEOUT,
+    TW_TIMEOUT
+};
+
 struct ipv4 {
 	uint8_t 	version_ihl;
 	uint8_t		tos;
@@ -63,12 +90,14 @@ struct pseudoheader {
 	uint16_t	tcp_len;
 };
 
+
 void IPV4(size_t len_contents, uint8_t protocol, char *daddr, struct ipv4 * ip);
 void ICMPEcho(uint16_t seq, struct icmpecho * echo);
 void TCP(uint16_t sport, uint16_t dport, uint32_t seq, uint32_t ack, uint8_t flags, uint32_t options, struct tcp * tcp);
-void make_tcp_packet(struct ipv4 * i, struct tcp * t, char *p);
+void send_tcp_packet(char *dest, int tun, uint8_t flags, uint32_t seq, uint32_t ack, uint16_t sport, uint16_t dport);
 
 uint16_t checksum(void *data, size_t count);
+uint16_t tcp_checksum(struct ipv4 *ip, struct tcp *tcp);
 void print_bytes(void *bytes, size_t len);
 void to_bytes(void *data, char *dst, size_t len);
 int openTun(char *dev);
