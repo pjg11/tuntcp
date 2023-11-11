@@ -1,5 +1,5 @@
-#ifndef TCPIP_H
-#define TCPIP_H
+#ifndef TUNTCP_H
+#define TUNTCP_H
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -102,4 +102,4 @@ void print_bytes(void *bytes, size_t len);
 void to_bytes(void *data, char *dst, size_t len);
 int openTun(char *dev);
 
-#endif
+#endif // TUNTCP_H

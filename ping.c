@@ -8,7 +8,7 @@
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <time.h>
-#include "tcpip.h"
+#include "tuntcp.h"
 
 int main(int argc, char *argv[]) {
 

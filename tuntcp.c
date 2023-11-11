@@ -8,7 +8,7 @@
 #include <sys/ioctl.h>
 #include <linux/if.h>
 #include <linux/if_tun.h>
-#include "tcpip.h"
+#include "tuntcp.h"
 
 #define IFNAMSIZ 16
 

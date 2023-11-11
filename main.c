@@ -4,7 +4,7 @@
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <time.h>
-#include "tcpip.h"
+#include "tuntcp.h"
 
 int main(void) {
 

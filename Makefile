@@ -1,8 +1,8 @@
-tcpip: main.c tcpip.c
-	gcc -o tcpip main.c tcpip.c
+tuntcp: main.c tuntcp.c
+	gcc -o tuntcp main.c tuntcp.c
 
-ping: ping.c tcpip.c
-	gcc -o ping ping.c tcpip.c
+ping: ping.c tuntcp.c
+	gcc -o ping ping.c tuntcp.c
 
 clean:
-	rm tcpip ping
+	rm tuntcp ping
