@@ -9,6 +9,8 @@
 #include <linux/if.h>
 #include <linux/if_tun.h>
 #include "tuntcp.h"
+#include <time.h>
+#include <ctype.h>
 
 #define IFNAMSIZ 16
 
@@ -16,7 +18,7 @@ void IPV4(size_t len_contents, uint8_t protocol, char *daddr, struct ipv4 * ip) 
 	
 	ip->version_ihl = 4 << 4 | 5;
 	ip->tos = 0;
-	ip->len = htons(20 + len_contents);
+	ip->len = htons(sizeof(*ip) + len_contents);
 	ip->id = htons(1);
 	ip->frag_offset = 0;
 	ip->ttl = 64;
@@ -40,42 +42,52 @@ void ICMPEcho(uint16_t seq, struct icmpecho * echo) {
 
 }
 
-void TCP(uint16_t sport, uint16_t dport, uint32_t seq, uint32_t ack, uint8_t flags, uint32_t options, struct tcp * tcp) {
+void TCP(uint16_t sport, uint16_t dport, uint32_t seq, uint32_t ack, uint8_t flags, struct tcp * tcp) {
 
 	tcp->sport = htons(sport);
 	tcp->dport = htons(dport);
 	tcp->seq = htonl(seq);
 	tcp->ack = htonl(ack);
-	tcp->rsvd_offset = 6 << 4;
-
+	tcp->rsvd_offset = (sizeof(*tcp) >> 2) << 4;
 	tcp->flags = flags;
 	tcp->win = htons(65535);
 	tcp->checksum = 0;
 	tcp->urp = 0;
-
-	tcp->options = htonl(options);
-
 }
 
-void send_tcp_packet(char *dest, int tun, uint8_t flags, uint32_t seq, uint32_t ack, uint16_t sport, uint16_t dport) {
-
-	struct tcp * tcp = calloc(1, sizeof(*tcp));
-	TCP(sport, dport, seq, ack, flags, OPT_MSS, tcp);
-
-	struct ipv4 * ip = calloc(1, sizeof(*ip));
-	IPV4(sizeof(*tcp), PROTO_TCP, dest, ip);
-
-	tcp->checksum = tcp_checksum(ip,tcp);
-
-	size_t size = sizeof(*ip) + sizeof(*tcp);
-	char packet[size];
-	memcpy(packet, ip, sizeof(*ip));
-	memcpy(packet + sizeof(*ip), tcp, sizeof(*tcp));
+void TCPConnection(int tun, char *addr, uint16_t port, struct tcp_conn *conn) {
 	
-	free(tcp);
-	free(ip);
+	srand(time(NULL));
 
-	write(tun, packet, size);
+	conn->tun = tun;
+	conn->state = TCP_CLOSED;
+
+	inet_pton(AF_INET, "192.0.2.2", &(conn->src_addr));
+	conn->src_port = rand() % INT16_MAX;
+
+	conn->dst_addr = addr;
+	conn->dst_port = port;
+
+	conn->seq = rand();
+	conn->ack = 0;
+}
+
+void send_tcp_packet(struct tcp_conn *conn, uint8_t flags) {
+
+	struct tcp tcp;
+	TCP(conn->src_port, conn->dst_port, conn->seq, conn->ack, flags, &tcp);
+
+	struct ipv4 ip;
+	IPV4(sizeof(tcp), PROTO_TCP, conn->dst_addr, &ip);
+
+	tcp.checksum = tcp_checksum(&ip,&tcp);
+
+	size_t size = sizeof(ip) + sizeof(tcp);
+	char packet[size];
+	memcpy(packet, &ip, sizeof(ip));
+	memcpy(packet + sizeof(ip), &tcp, sizeof(tcp));
+	
+	write(conn->tun, packet, size);
 }
 
 uint16_t tcp_checksum(struct ipv4 *ip, struct tcp *tcp) {
@@ -83,8 +95,7 @@ uint16_t tcp_checksum(struct ipv4 *ip, struct tcp *tcp) {
 	ph->src = ip->src;
 	ph-> dst = ip->dst;
 	ph->proto = ip->proto;
-	ph->tcp_len = htons(ntohs(ip->len) - 20); // confused about this
-	
+	ph->tcp_len = htons(ntohs(ip->len) - sizeof(*ip));
 	size_t size = sizeof(*ph) + sizeof(*tcp);
 
 	char sum_data[size];
@@ -144,8 +155,6 @@ int openTun(char *dev) {
 		close(fd);
 		return err;
 	}
-
-	char addr[INET_ADDRSTRLEN];
 
 	return fd;
 }

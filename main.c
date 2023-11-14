@@ -4,37 +4,36 @@
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <time.h>
+#include <ctype.h>
 #include "tuntcp.h"
 
 int main(void) {
 
-	srand(time(NULL));
-
 	int tun = openTun("tun0");
+	struct tcp_conn conn;
+	TCPConnection(tun, "93.184.216.34", 80, &conn);
 	char buffer[1024] = {0};
-	char *dest = "93.184.216.34";
-	uint32_t iss = rand();
-	uint16_t sport = rand() % INT16_MAX;
 
 	// Sending a SYN packet
-	send_tcp_packet(dest, tun, TCP_SYN, iss, 0, sport, 80);
+	send_tcp_packet(&conn, TCP_SYN);
+	conn.state = TCP_SYN_SENT;
+
 	read(tun, buffer, sizeof(buffer));
 
-	struct tcp * synack = calloc(1, sizeof(*synack));
-	struct ipv4 * synackip = calloc(1, sizeof(*synackip));
-	memcpy(synackip, buffer, sizeof(*synackip));
-	memcpy(synack, buffer + sizeof(*synackip), sizeof(*synack));
+	struct ipv4 *ip = buf2ip(buffer);
+	struct tcp *tcp = buf2tcp(buffer, ip);
+	int tcplen = ipdlen(ip);
 
-	memset(buffer, 0, sizeof(buffer));
+	conn.seq = ntohl(tcp->ack);
+	conn.ack = ntohl(tcp->seq) + 1;
 
 	// Sending an ACK packet
-	send_tcp_packet(dest, tun, TCP_ACK, ntohl(synack->ack), ntohl(synack->seq)+1, sport, 80);
+	send_tcp_packet(&conn, TCP_ACK);
+	conn.state = TCP_ESTABLISHED;
 
 	// Sending a RST packet
-	send_tcp_packet(dest, tun, TCP_ACK, ntohl(synack->ack), 0, sport, 80);
-
-	free(synack);
-	free(synackip);
-
+	send_tcp_packet(&conn, TCP_RST);
+	
+	conn.state = TCP_CLOSED;
 	return 0;
 }
