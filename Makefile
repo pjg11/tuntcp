@@ -1,8 +1,9 @@
-tuntcp: main.c tuntcp.c
-	gcc -o tuntcp main.c tuntcp.c
+CFLAGS+=-Wall -Werror -Wpedantic
 
-ping: ping.c tuntcp.c
-	gcc -o ping ping.c tuntcp.c
+all: tuntcp
+
+tuntcp:
+	cc $(CFLAGS) -o tuntcp main.c
 
 clean:
-	rm tuntcp ping
+	rm tuntcp
