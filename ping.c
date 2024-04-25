@@ -12,11 +12,11 @@ int main(int argc, char *argv[]) {
     printf("Usage: ./ping <ip>\n");
     return 1;
   }
-  
+
   tun = openTun("tun0");
   count = 1;
   dst = argv[1];
-  
+
   s = &send.ping;
   s->ip = ip(sizeof(s->echo), PROTO_ICMP, dst);
 
@@ -31,13 +31,13 @@ int main(int argc, char *argv[]) {
     len = read(tun, &recv, sizeof(recv));
 
     clock_gettime(CLOCK_REALTIME, &end);
+    elapsed = (end.tv_sec - start.tv_sec) +
+              ((end.tv_nsec - start.tv_nsec) / 1000000.0);
 
     r = &recv.ping;
-    if (!r->echo.type) {
-      elapsed = (end.tv_sec - start.tv_sec) +
-                ((end.tv_nsec - start.tv_nsec) / 1000000.0);
-      printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.1f ms\n", len,
-             dst, ntohs(r->echo.seq), r->ip.ttl, elapsed);
+    if (!r->echo.type && elapsed > 0) {
+      printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.1f ms\n", len, dst,
+             ntohs(r->echo.seq), r->ip.ttl, elapsed);
       count += 1;
       sleep(1);
     }

@@ -29,7 +29,7 @@ typedef struct {
   uint16_t checksum;
   uint32_t src;
   uint32_t dst;
-} ipv4;
+} iphdr;
 
 typedef struct {
   uint8_t type;
@@ -42,14 +42,13 @@ typedef struct {
 typedef struct {
   union {
     struct ping {
-      ipv4 ip;
+      iphdr ip;
       icmpecho echo;
     } ping;
   };
 } packet;
 
-
-ipv4 ip(size_t len_contents, uint8_t protocol, char *daddr);
+iphdr ip(size_t len_contents, uint8_t protocol, char *daddr);
 icmpecho echo(uint16_t seq);
 
 int openTun(char *dev);

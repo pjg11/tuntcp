@@ -1,7 +1,7 @@
 #include "tuntcp.h"
 
-ipv4 ip(size_t len_contents, uint8_t protocol, char *daddr) {
-  ipv4 i;
+iphdr ip(size_t len_contents, uint8_t protocol, char *daddr) {
+  iphdr i;
 
   i.version_ihl = 4 << 4 | 5;
   i.tos = 0;
