@@ -1,11 +1,10 @@
 #include "tuntcp.h"
 
-iphdr ip(size_t len_contents, uint8_t protocol, char *daddr) {
+iphdr ip(size_t datalen, uint8_t protocol, char *daddr) {
   iphdr i;
-
   i.version_ihl = 4 << 4 | 5;
   i.tos = 0;
-  i.len = htons(20 + len_contents);
+  i.len = htons(20 + datalen);
   i.id = htons(1);
   i.frag_offset = 0;
   i.ttl = 64;
@@ -20,7 +19,6 @@ iphdr ip(size_t len_contents, uint8_t protocol, char *daddr) {
 
 icmpecho echo(uint16_t seq) {
   icmpecho e;
-
   e.type = 8;
   e.code = 0;
   e.checksum = 0;

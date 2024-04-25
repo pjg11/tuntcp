@@ -1,12 +1,11 @@
 #include "tuntcp.h"
 
 int main(int argc, char *argv[]) {
-  int tun, count, len;
-  double elapsed;
+  int tun, count, len, size;
   char *dst;
   packet send, recv;
-  struct ping *s, *r;
   struct timespec start, end;
+  double elapsed;
 
   if (argc != 2) {
     printf("Usage: ./ping <ip>\n");
@@ -17,27 +16,25 @@ int main(int argc, char *argv[]) {
   count = 1;
   dst = argv[1];
 
-  s = &send.ping;
-  s->ip = ip(sizeof(s->echo), PROTO_ICMP, dst);
-
-  printf("PING %s (%s) %d bytes of data.\n", dst, dst, ntohs(s->ip.len));
+  send.ping.ip = ip(sizeof(send.ping.echo), PROTO_ICMP, dst);
+  size = sizeof(send.ping);
+  printf("PING %s (%s) %d bytes of data.\n", dst, dst, ntohs(send.ping.ip.len));
 
   while (1) {
-    s->echo = echo(count);
+    send.ping.echo = echo(count);
 
     clock_gettime(CLOCK_REALTIME, &start);
 
-    write(tun, &send, sizeof(send));
-    len = read(tun, &recv, sizeof(recv));
+    write(tun, &send, size);
+    len = read(tun, &recv, size);
 
     clock_gettime(CLOCK_REALTIME, &end);
     elapsed = (end.tv_sec - start.tv_sec) +
               ((end.tv_nsec - start.tv_nsec) / 1000000.0);
 
-    r = &recv.ping;
-    if (!r->echo.type && elapsed > 0) {
+    if (!recv.ping.echo.type && elapsed > 0.0) {
       printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.1f ms\n", len, dst,
-             ntohs(r->echo.seq), r->ip.ttl, elapsed);
+             ntohs(recv.ping.echo.seq), recv.ping.ip.ttl, elapsed);
       count += 1;
       sleep(1);
     }
