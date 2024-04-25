@@ -1,39 +1,40 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdint.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/ioctl.h>
-#include <linux/if.h>
-#include <linux/if_tun.h>
 #include <arpa/inet.h>
 #include <ctype.h>
+#include <fcntl.h>
+#include <linux/if.h>
+#include <linux/if_tun.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <time.h>
+#include <unistd.h>
 
 #define PROTO_ICMP 1
 #define PROTO_TCP 6
 #define PROTO_UDP 17
 
 typedef struct {
-  uint8_t  version_ihl;
-  uint8_t  tos;
+  uint8_t version_ihl;
+  uint8_t tos;
   uint16_t len;
   uint16_t id;
   uint16_t frag_offset;
-  uint8_t  ttl;
-  uint8_t  proto;
+  uint8_t ttl;
+  uint8_t proto;
   uint16_t checksum;
   uint32_t src;
   uint32_t dst;
 } ipv4;
 
 typedef struct {
-  uint8_t  type;
-  uint8_t  code;
+  uint8_t type;
+  uint8_t code;
   uint16_t checksum;
   uint16_t id;
   uint16_t seq;
 } icmpecho;
-
 
 typedef struct {
   union {
@@ -44,18 +45,17 @@ typedef struct {
   };
 } packet;
 
-
 int openTun(char *dev) {
   int fd, err;
   struct ifreq ifr;
 
-  if((fd = open("/dev/net/tun", O_RDWR)) < 0)
+  if ((fd = open("/dev/net/tun", O_RDWR)) < 0)
     return 1;
 
   ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
   strncpy(ifr.ifr_name, dev, IFNAMSIZ);
 
-  if((err = ioctl(fd, TUNSETIFF, (void *) &ifr)) < 0) {
+  if ((err = ioctl(fd, TUNSETIFF, (void *)&ifr)) < 0) {
     close(fd);
     return err;
   }
@@ -68,23 +68,23 @@ void hexdump(const void *data, size_t size) {
   int offset, index;
 
   src = (unsigned char *)data;
-  for(offset = 0; offset < (int)size; offset += 16) {
+  for (offset = 0; offset < (int)size; offset += 16) {
     printf("%08x ", offset);
-    for(index = 0; index < 16; index++) {
+    for (index = 0; index < 16; index++) {
       if ((offset + index) % 8 == 0)
         printf(" ");
 
-      if(offset + index < (int)size) {
+      if (offset + index < (int)size) {
         printf("%02x ", 0xff & src[offset + index]);
       } else {
         printf("   ");
       }
     }
     printf(" |");
-    for(index = 0; index < 16; index++) {
-      if(offset + index < (int)size) {
-        if(isascii(src[offset + index]) && isprint(src[offset + index])) {
-            printf("%c", src[offset + index]);
+    for (index = 0; index < 16; index++) {
+      if (offset + index < (int)size) {
+        if (isascii(src[offset + index]) && isprint(src[offset + index])) {
+          printf("%c", src[offset + index]);
         } else {
           printf(".");
         }
@@ -102,13 +102,13 @@ uint16_t checksum(void *data, size_t count) {
   register uint32_t sum = 0;
   uint16_t *p = data;
 
-  while (count > 1)  {
+  while (count > 1) {
     sum += *p++;
     count -= 2;
   }
 
   if (count > 0)
-    sum += * (uint8_t *) data;
+    sum += *(uint8_t *)data;
 
   while (sum >> 16)
     sum = (sum & 0xffff) + (sum >> 16);
@@ -138,7 +138,7 @@ ipv4 ip(size_t len_contents, uint8_t protocol, char *daddr) {
 icmpecho echo(uint16_t id, uint16_t seq) {
 
   icmpecho e;
-  
+
   e.type = 8;
   e.code = 0;
   e.checksum = 0;
@@ -149,23 +149,49 @@ icmpecho echo(uint16_t id, uint16_t seq) {
   return e;
 }
 
-int main(void) {
-  int tun, bytes;
-  size_t size;
-  packet send, recv;
+int main(int argc, char *argv[]) {
+  int tun, count;
+  char *daddr;
 
   tun = openTun("tun0");
 
-  send.ping.echo = echo(12345, 1);
-  send.ping.ip = ip(sizeof(send.ping.echo), PROTO_ICMP, "8.8.8.8");
-  size = sizeof(send);
+  if (argc != 2) {
+    printf("Usage: ./ping <ip>\n");
+    return 1;
+  }
+  count = 1;
+  daddr = argv[1];
 
-  hexdump(&send, size);
-  write(tun, &send, size);
-  bytes = read(tun, &recv, size);
-  printf("\n");
-  hexdump(&recv, bytes);
+  packet send, recv;
+  struct ping s, r;
+  int bytes;
+  double elapsed;
+  struct timespec start, end;
 
-  close(tun);
+  send.ping.ip = ip(sizeof(send.ping.echo), PROTO_ICMP, daddr);
+  s = send.ping;
+
+  printf("PING %s (%s) %d bytes of data.\n", daddr, daddr, ntohs(s.ip.len));
+
+  while (1) {
+    send.ping.echo = echo(12345, count);
+
+    clock_gettime(CLOCK_REALTIME, &start);
+
+    write(tun, &send, sizeof(send));
+    bytes = read(tun, &recv, sizeof(recv));
+
+    clock_gettime(CLOCK_REALTIME, &end);
+
+    if (!r.echo.type) {
+      elapsed = (end.tv_sec - start.tv_sec) +
+                ((end.tv_nsec - start.tv_nsec) / 1000000.0);
+      r = recv.ping;
+      printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.1f ms\n", bytes,
+             daddr, ntohs(r.echo.seq), r.ip.ttl, elapsed);
+      count += 1;
+      sleep(1);
+    }
+  }
   return 0;
 }

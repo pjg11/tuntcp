@@ -1,9 +1,9 @@
 CFLAGS+=-Wall -Werror -Wpedantic
 
-all: tuntcp
+all: ping
 
-tuntcp:
-	cc $(CFLAGS) -o tuntcp main.c
+ping: main.c
+	cc $(CFLAGS) -o ping main.c
 
 clean:
-	rm tuntcp
+	rm ping
