@@ -1,13 +1,13 @@
 #ifndef TUNTCP_H
 #define TUNTCP_H
 
-#include <stdio.h>
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include <linux/if.h>
 #include <linux/if_tun.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -40,16 +40,29 @@ typedef struct {
 } icmpecho;
 
 typedef struct {
+  uint16_t sport;
+  uint16_t dport;
+  uint16_t datalen;
+  uint16_t checksum;
+} udphdr;
+
+typedef struct {
   union {
     struct ping {
       iphdr ip;
       icmpecho echo;
     } ping;
+    struct udp {
+      iphdr ip;
+      udphdr hdr;
+      char data[512];
+    } udp;
   };
 } packet;
 
 iphdr ip(size_t len_contents, uint8_t protocol, char *daddr);
 icmpecho echo(uint16_t seq);
+udphdr udp(uint16_t datalen, uint16_t sport, uint16_t dport);
 
 int openTun(char *dev);
 uint16_t checksum(void *data, size_t count);

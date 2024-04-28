@@ -29,6 +29,15 @@ icmpecho echo(uint16_t seq) {
   return e;
 }
 
+udphdr udp(uint16_t datalen, uint16_t sport, uint16_t dport) {
+  udphdr u;
+  u.sport = htons(sport);
+  u.dport = htons(dport);
+  u.datalen = htons(datalen);
+  u.checksum = 0;
+  return u;
+}
+
 int openTun(char *dev) {
   int fd, err;
   struct ifreq ifr;
