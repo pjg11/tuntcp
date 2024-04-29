@@ -42,9 +42,17 @@ typedef struct {
 typedef struct {
   uint16_t sport;
   uint16_t dport;
-  uint16_t datalen;
+  uint16_t len;
   uint16_t checksum;
 } udphdr;
+
+typedef struct {
+  uint32_t src;
+  uint32_t dst;
+  uint8_t zero;
+  uint8_t proto;
+  uint16_t plen; // packet length - header + data
+} pseudohdr;
 
 typedef struct {
   union {
@@ -57,6 +65,10 @@ typedef struct {
       udphdr hdr;
       char data[512];
     } udp;
+    struct pseudo {
+      pseudohdr ip;
+      char data[520]; // TCP/UDP header + data
+    } pseudo;
   };
 } packet;
 

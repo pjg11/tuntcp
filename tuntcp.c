@@ -33,7 +33,7 @@ udphdr udp(uint16_t datalen, uint16_t sport, uint16_t dport) {
   udphdr u;
   u.sport = htons(sport);
   u.dport = htons(dport);
-  u.datalen = htons(datalen);
+  u.len = htons(8 + datalen);
   u.checksum = 0;
   return u;
 }
