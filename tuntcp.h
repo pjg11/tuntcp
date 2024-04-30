@@ -2,6 +2,7 @@
 #define TUNTCP_H
 
 #include <arpa/inet.h>
+#include <assert.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include <linux/if.h>
@@ -59,6 +60,7 @@ typedef struct {
     struct ping {
       iphdr ip;
       icmpecho echo;
+      char data[56];
     } ping;
     struct udp {
       iphdr ip;
@@ -72,14 +74,11 @@ typedef struct {
   };
 } packet;
 
-iphdr ip(size_t len_contents, uint8_t protocol, char *daddr);
-icmpecho echo(uint16_t seq);
-int udp(char *dst, uint16_t sport, uint16_t dport, char *data, size_t datalen,
+int echo(char *dst, uint16_t seq, char data[], int datalen, packet *p);
+int udp(char *dst, uint16_t sport, uint16_t dport, char *data, int datalen,
         packet *p);
 
 int openTun(char *dev);
-uint16_t checksum(void *data, size_t count);
-uint16_t l4checksum(void *data, size_t count);
-void hexdump(const void *data, size_t size);
+void hexdump(const void *data, int nbytes);
 
 #endif // TUNTCP_H
