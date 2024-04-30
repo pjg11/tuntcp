@@ -29,13 +29,29 @@ icmpecho echo(uint16_t seq) {
   return e;
 }
 
-udphdr udp(uint16_t datalen, uint16_t sport, uint16_t dport) {
-  udphdr u;
-  u.sport = htons(sport);
-  u.dport = htons(dport);
-  u.len = htons(8 + datalen);
-  u.checksum = 0;
-  return u;
+int udp(char *dst, uint16_t sport, uint16_t dport, char *data, size_t datalen,
+        packet *p) {
+  size_t len = 0, udplen = 8 + datalen;
+
+  // UDP header
+  p->udp.hdr.sport = htons(sport);
+  p->udp.hdr.dport = htons(dport);
+  p->udp.hdr.len = htons(8 + datalen);
+  p->udp.hdr.checksum = 0;
+  len = 8;
+
+  // UDP data
+  memcpy(&p->udp.data, data, datalen);
+  len += datalen;
+
+  // IP header
+  p->udp.ip = ip(udplen, PROTO_UDP, dst);
+  len += sizeof(p->udp.ip);
+
+  // Checksum calculation
+  p->udp.hdr.checksum = l4checksum(&p->udp, udplen);
+
+  return len;
 }
 
 int openTun(char *dev) {
@@ -72,6 +88,26 @@ uint16_t checksum(void *data, size_t count) {
     sum = (sum & 0xffff) + (sum >> 16);
 
   return ~sum;
+}
+
+// TCP/UDP checksum
+uint16_t l4checksum(void *data, size_t count) {
+  packet p;
+  pseudohdr ph;
+  iphdr i = *(iphdr *)data;
+
+  // Pseudoheader
+  ph.src = i.src;
+  ph.dst = i.dst;
+  ph.zero = 0;
+  ph.proto = i.proto;
+  ph.plen = htons(count);
+  p.pseudo.ip = ph;
+
+  // TCP/UDP header + data
+  memcpy(p.pseudo.data, (char *)data + 20, count);
+
+  return checksum(&p, sizeof(ph) + count);
 }
 
 // https://github.com/pandax381/microps/blob/ac3747f68a6fd590443d028b4eaf5d97c4c58e49/util.c#L38

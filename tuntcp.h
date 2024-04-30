@@ -74,10 +74,12 @@ typedef struct {
 
 iphdr ip(size_t len_contents, uint8_t protocol, char *daddr);
 icmpecho echo(uint16_t seq);
-udphdr udp(uint16_t datalen, uint16_t sport, uint16_t dport);
+int udp(char *dst, uint16_t sport, uint16_t dport, char *data, size_t datalen,
+        packet *p);
 
 int openTun(char *dev);
 uint16_t checksum(void *data, size_t count);
+uint16_t l4checksum(void *data, size_t count);
 void hexdump(const void *data, size_t size);
 
 #endif // TUNTCP_H
