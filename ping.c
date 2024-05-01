@@ -3,7 +3,7 @@
 int main(int argc, char *argv[]) {
 
   int tun, seq;
-  int nbytes;
+  int len;
   char *dst;
   packet s, r, *send, *recv;
   struct timespec start, end;
@@ -30,19 +30,19 @@ int main(int argc, char *argv[]) {
   printf("PING %s (%s) %d bytes of data.\n", dst, dst, datalen);
 
   while (1) {
-    nbytes = echo(dst, seq, data, datalen, send);
+    len = echo(dst, seq, data, datalen, send);
 
     clock_gettime(CLOCK_REALTIME, &start);
 
-    write(tun, send, nbytes);
-    nbytes = read(tun, recv, nbytes);
+    write(tun, send, len);
+    len = read(tun, recv, len);
 
     clock_gettime(CLOCK_REALTIME, &end);
     elapsed = (end.tv_sec - start.tv_sec) +
               ((end.tv_nsec - start.tv_nsec) / 1000000.0);
 
     if (!recv->ping.echo.type && elapsed > 0.0) {
-      printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.1f ms\n", nbytes - 20,
+      printf("%d bytes from %s: icmp_seq=%d ttl=%d time=%.1f ms\n", len - 20,
              dst, ntohs(recv->ping.echo.seq), recv->ping.ip.ttl, elapsed);
       seq += 1;
       sleep(1);

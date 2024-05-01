@@ -4,7 +4,7 @@ int main(void) {
   packet s, r;
   packet *send = &s, *recv = &r;
   int tun;
-  int nbytes;
+  int len;
 
   // DNS query for examplecat.com
   char data[] = "\xcb\xcc\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x0a\x65\x78"
@@ -12,14 +12,14 @@ int main(void) {
                 "\x00\x01";
 
   tun = openTun("tun0");
-  nbytes = udp("8.8.8.8", 12345, 53, data, sizeof(data) - 1, send);
+  len = udp("8.8.8.8", 12345, 53, data, sizeof(data) - 1, send);
 
-  hexdump(send, nbytes);
+  hexdump(send, len);
 
-  write(tun, send, nbytes);
-  nbytes = read(tun, recv, 540);
+  write(tun, send, len);
+  len = read(tun, recv, 540);
 
-  hexdump(recv, nbytes);
+  hexdump(recv, len);
 
   // Checking the received address for example.com
   char addr[INET_ADDRSTRLEN];

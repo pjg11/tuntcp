@@ -1,16 +1,16 @@
 #include "tuntcp.h"
 
 // https://www.rfc-editor.org/rfc/rfc1071#section-4.1
-uint16_t checksum(void *data, int count) {
+uint16_t checksum(void *data, int len) {
   register uint32_t sum = 0;
   uint16_t *p = data;
 
-  while (count > 1) {
+  while (len > 1) {
     sum += *p++;
-    count -= 2;
+    len -= 2;
   }
 
-  if (count > 0)
+  if (len > 0)
     sum += *(uint8_t *)data;
 
   while (sum >> 16)
@@ -20,7 +20,7 @@ uint16_t checksum(void *data, int count) {
 }
 
 // TCP/UDP checksum
-uint16_t l4checksum(void *data, int count) {
+uint16_t l4checksum(void *data, int len) {
   packet p;
   iphdr i = *(iphdr *)data;
 
@@ -29,15 +29,17 @@ uint16_t l4checksum(void *data, int count) {
   p.pseudo.ip.dst = i.dst;
   p.pseudo.ip.zero = 0;
   p.pseudo.ip.proto = i.proto;
-  p.pseudo.ip.plen = htons(count);
+  p.pseudo.ip.plen = htons(len);
 
   // TCP/UDP header + data
-  memcpy(p.pseudo.data, (char *)data + 20, count);
+  memcpy(p.pseudo.data, (char *)data + sizeof(i), len);
 
-  return checksum(&p, sizeof(p.pseudo.ip) + count);
+  return checksum(&p, sizeof(p.pseudo.ip) + len);
 }
 
-void ip(int datalen, uint8_t protocol, char *daddr, iphdr *i) {
+int ip(int datalen, uint8_t protocol, char *daddr, iphdr *i) {
+  int len = sizeof(*i);
+
   i->version_ihl = 4 << 4 | 5;
   i->tos = 0;
   i->len = htons(20 + datalen);
@@ -49,11 +51,12 @@ void ip(int datalen, uint8_t protocol, char *daddr, iphdr *i) {
   inet_pton(AF_INET, "192.0.2.2", &i->src);
   inet_pton(AF_INET, daddr, &i->dst);
 
-  i->checksum = checksum(i, sizeof(*i));
+  i->checksum = checksum(i, len);
+  return len;
 }
 
 int echo(char *dst, uint16_t seq, char data[], int datalen, packet *p) {
-  int len = 8;
+  int len;
 
   // Echo request
   icmpecho *e = &p->ping.echo;
@@ -62,44 +65,44 @@ int echo(char *dst, uint16_t seq, char data[], int datalen, packet *p) {
   e->checksum = 0;
   e->id = htons(12345);
   e->seq = htons(seq);
+  len = sizeof(*e);
 
   // Data
   memcpy(&p->ping.data, data, datalen);
   len += datalen;
 
-  // Checksum
+  // ICMP Checksum
   p->ping.echo.checksum = checksum((char *)p + sizeof(p->ping.ip), len);
 
   // IP header
   ip(len, PROTO_ICMP, dst, &p->ping.ip);
-  len += sizeof(p->ping.ip);
 
-  return len;
+  return sizeof(p->ping.ip) + len;
 }
 
 int udp(char *dst, uint16_t sport, uint16_t dport, char *data, int datalen,
         packet *p) {
-  int len = 0, udplen = 8 + datalen;
+  int len;
 
   // UDP header
-  p->udp.hdr.sport = htons(sport);
-  p->udp.hdr.dport = htons(dport);
-  p->udp.hdr.len = htons(8 + datalen);
-  p->udp.hdr.checksum = 0;
-  len = 8;
+  udphdr *u = &p->udp.hdr;
+  u->sport = htons(sport);
+  u->dport = htons(dport);
+  u->len = htons(8 + datalen);
+  u->checksum = 0;
+  len = sizeof(*u);
 
   // UDP data
   memcpy(&p->udp.data, data, datalen);
   len += datalen;
 
   // IP header
-  ip(udplen, PROTO_UDP, dst, &p->udp.ip);
-  len += sizeof(p->udp.ip);
+  ip(len, PROTO_UDP, dst, &p->udp.ip);
 
-  // Checksum calculation
-  p->udp.hdr.checksum = l4checksum(&p->udp, udplen);
+  // UDP Checksum
+  u->checksum = l4checksum(&p->udp, len);
 
-  return len;
+  return sizeof(p->udp.ip) + len;
 }
 
 int openTun(char *dev) {

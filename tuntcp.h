@@ -55,23 +55,21 @@ typedef struct {
   uint16_t plen; // packet length - header + data
 } pseudohdr;
 
-typedef struct {
-  union {
-    struct ping {
-      iphdr ip;
-      icmpecho echo;
-      char data[56];
-    } ping;
-    struct udp {
-      iphdr ip;
-      udphdr hdr;
-      char data[512];
-    } udp;
-    struct pseudo {
-      pseudohdr ip;
-      char data[520]; // TCP/UDP header + data
+typedef union {
+  struct ping {
+    iphdr ip;
+    icmpecho echo;
+    char data[56];
+  } ping;
+  struct udp {
+    iphdr ip;
+    udphdr hdr;
+    char data[512];
+  } udp;
+  struct pseudo {
+    pseudohdr ip;
+    char data[520]; // TCP/UDP header + data
     } pseudo;
-  };
 } packet;
 
 int echo(char *dst, uint16_t seq, char data[], int datalen, packet *p);
@@ -79,6 +77,6 @@ int udp(char *dst, uint16_t sport, uint16_t dport, char *data, int datalen,
         packet *p);
 
 int openTun(char *dev);
-void hexdump(const void *data, int nbytes);
+void hexdump(const void *data, int len);
 
 #endif // TUNTCP_H
