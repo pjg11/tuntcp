@@ -105,6 +105,37 @@ int udp(char *dst, uint16_t sport, uint16_t dport, char *data, int datalen,
   return sizeof(p->udp.ip) + len;
 }
 
+int tcp(char *dst, uint16_t sport, uint16_t dport, uint8_t flags, uint32_t seq,
+        uint32_t ack, packet *p) {
+
+  // TCP header
+  tcphdr *t = &p->tcp.hdr;
+  int len = flags & TCP_SYN ? sizeof(*t) : sizeof(*t) - 4;
+
+  t->sport = htons(sport);
+  t->dport = htons(dport);
+  t->seq = htonl(seq);
+  t->ack = htonl(ack);
+  t->rsvd_offset = (len / 4) << 4;
+  t->flags = flags;
+  t->win = htons(65535);
+  t->checksum = 0;
+  t->urp = 0;
+
+  // Maximum Segment Size
+  if (flags & TCP_SYN) {
+    memcpy(&t->options, "\x02\x04\x05\xb4", 4);
+  }
+
+  // IP header
+  ip(len, PROTO_TCP, dst, &p->tcp.ip);
+
+  // TCP Checksum
+  t->checksum = l4checksum(&p->tcp, len);
+
+  return sizeof(p->tcp.ip) + len;
+}
+
 int openTun(char *dev) {
   int fd, err;
   struct ifreq ifr;
@@ -120,6 +151,29 @@ int openTun(char *dev) {
     return err;
   }
   return fd;
+}
+
+// https://stackoverflow.com/a/2918709
+int timeoutread(int fd, void *buf, size_t count) {
+  int rv;
+  fd_set set;
+  struct timeval tv;
+
+  FD_ZERO(&set);
+  FD_SET(fd, &set);
+
+  tv.tv_sec = 5;
+  tv.tv_usec = 0;
+  rv = select(fd + 1, &set, NULL, NULL, &tv);
+
+  if (rv == -1)
+    perror("select");
+  else if (rv == 0)
+    printf("timeout\n");
+  else
+    return read(fd, buf, count);
+
+  return -1;
 }
 
 // https://github.com/pandax381/microps/blob/ac3747f68a6fd590443d028b4eaf5d97c4c58e49/util.c#L38
