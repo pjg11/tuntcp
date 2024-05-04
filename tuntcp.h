@@ -77,6 +77,35 @@ typedef struct {
   uint32_t options;
 } tcphdr;
 
+typedef enum tcpstate {
+  LISTEN,
+  SYN_SENT,
+  SYN_RECEIVED,
+  ESTABLISHED,
+  FIN_WAIT_1,
+  FIN_WAIT_2,
+  CLOSE_WAIT,
+  CLOSING,
+  LAST_ACK,
+  TIME_WAIT,
+  CLOSED
+} tcpstate;
+
+// All values stored in Host Order
+typedef struct {
+  int tunfd;
+  tcpstate state;
+
+  char *saddr;
+  uint16_t sport;
+
+  char *daddr;
+  uint16_t dport;
+
+  uint32_t seq;
+  uint32_t ack;
+} tcpconn;
+
 typedef union {
   struct ping {
     iphdr ip;
@@ -108,6 +137,7 @@ int udp(char *dst, uint16_t sport, uint16_t dport, char *data, int datalen,
         packet *p);
 int tcp(char *dst, uint16_t sport, uint16_t dport, uint8_t flags, uint32_t seq,
         uint32_t ack, packet *p);
+int conn(char *daddr, uint16_t dport, int tunfd, tcpconn *c);
 
 int openTun(char *dev);
 int timeoutread(int fd, void *buf, size_t count);

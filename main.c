@@ -4,13 +4,17 @@ int main(void) {
   packet s, r;
   packet *send = &s, *recv = &r;
   tcphdr *syn, *synack;
+  iphdr *recvip;
+  uint32_t saddr, daddr;
   int tun;
+  tcpconn c;
   int len;
 
   tun = openTun("tun0");
+  len = conn("208.94.117.43", 80, tun, &c);
 
   // SYN
-  len = tcp("208.94.117.43", 12346, 80, TCP_SYN, 0, 0, send);
+  len = tcp(c.daddr, c.sport, c.dport, TCP_SYN, c.seq, c.ack, send);
   syn = &send->tcp.hdr;
   hexdump(send, len);
   write(tun, send, len);
@@ -19,18 +23,29 @@ int main(void) {
   len = timeoutread(tun, recv, sizeof(*recv));
   hexdump(recv, len);
   synack = &recv->tcp.hdr;
-  assert(ntohl(synack->ack) == ntohl(syn->seq) + 1);
+  recvip = &recv->tcp.ip;
+  inet_pton(AF_INET, c.saddr, &saddr);
+  inet_pton(AF_INET, c.daddr, &daddr);
 
-  // ACK
-  len = tcp("208.94.117.43", 12346, 80, TCP_ACK, ntohl(synack->ack),
-            ntohl(synack->seq) + 1, send);
-  hexdump(send, len);
-  write(tun, send, len);
+  if (recvip->src == daddr && recvip->dst == saddr &&
+      c.sport == ntohs(synack->dport) && c.dport == ntohs(synack->sport)) {
+    c.seq = synack->ack;
+    c.ack = htonl(ntohl(synack->seq) + 1);
+    assert(ntohl(c.seq) == ntohl(syn->seq) + 1);
 
-  // RST
-  len = tcp("208.94.117.43", 12346, 80, TCP_RST, ntohl(synack->ack),
-            ntohl(synack->seq) + 1, send);
-  hexdump(send, len);
-  write(tun, send, len);
+    // ACK
+    len = tcp(c.daddr, c.sport, c.dport, TCP_ACK, c.seq, c.ack, send);
+    hexdump(send, len);
+    write(tun, send, len);
+
+    c.state = ESTABLISHED;
+
+    // RST
+    len = tcp(c.daddr, c.sport, c.dport, TCP_RST, c.seq, c.ack, send);
+    hexdump(send, len);
+    write(tun, send, len);
+  }
+
+  close(tun);
   return 0;
 }

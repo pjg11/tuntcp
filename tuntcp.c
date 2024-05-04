@@ -136,6 +136,24 @@ int tcp(char *dst, uint16_t sport, uint16_t dport, uint8_t flags, uint32_t seq,
   return sizeof(p->tcp.ip) + len;
 }
 
+int conn(char *daddr, uint16_t dport, int tunfd, tcpconn *c) {
+  srand(time(NULL));
+
+  c->tunfd = tunfd;
+  c->state = CLOSED;
+
+  c->saddr = "192.0.2.2";
+  c->sport = (uint16_t)rand();
+
+  c->daddr = daddr;
+  c->dport = dport;
+
+  c->seq = (uint32_t)rand();
+  c->ack = 0;
+
+  return sizeof(*c);
+}
+
 int openTun(char *dev) {
   int fd, err;
   struct ifreq ifr;
