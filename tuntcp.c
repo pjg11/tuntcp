@@ -72,7 +72,7 @@ int echo(char *dst, uint16_t seq, char data[], int datalen, packet *p) {
   len += datalen;
 
   // ICMP Checksum
-  p->ping.echo.checksum = checksum((char *)p + sizeof(p->ping.ip), len);
+  e->checksum = checksum((char *)p + sizeof(p->ping.ip), len);
 
   // IP header
   ip(len, PROTO_ICMP, dst, &p->ping.ip);
@@ -152,6 +152,36 @@ int conn(char *daddr, uint16_t dport, int tunfd, tcpconn *c) {
   c->ack = 0;
 
   return sizeof(*c);
+}
+
+int tcpsend(tcpconn *c, uint8_t flags) {
+  packet s;
+  packet *send = &s;
+  int len = tcp(c->daddr, c->sport, c->dport, flags, c->seq, c->ack, send);
+  hexdump(send, len);
+  return write(c->tunfd, send, len);
+}
+
+void tcprecv(tcpconn *c, tcphdr *t) {
+  packet r;
+  packet *recv = &r;
+  while (1) {
+    int len = timeoutread(c->tunfd, recv, 540);
+    hexdump(recv, len);
+
+    iphdr *i = &recv->tcp.ip;
+    t = &recv->tcp.hdr;
+
+    uint32_t saddr, daddr;
+    inet_pton(AF_INET, c->saddr, &saddr);
+    inet_pton(AF_INET, c->daddr, &daddr);
+
+    if (i->src == daddr && i->dst == saddr && c->sport == ntohs(t->dport) &&
+        c->dport == ntohs(t->sport)) {
+      memcpy(t, &recv->tcp.hdr, sizeof(*t));
+      break;
+    }
+  }
 }
 
 int openTun(char *dev) {

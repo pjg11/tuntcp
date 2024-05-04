@@ -138,6 +138,8 @@ int udp(char *dst, uint16_t sport, uint16_t dport, char *data, int datalen,
 int tcp(char *dst, uint16_t sport, uint16_t dport, uint8_t flags, uint32_t seq,
         uint32_t ack, packet *p);
 int conn(char *daddr, uint16_t dport, int tunfd, tcpconn *c);
+int tcpsend(tcpconn *c, uint8_t flags);
+void tcprecv(tcpconn *c, tcphdr *t);
 
 int openTun(char *dev);
 int timeoutread(int fd, void *buf, size_t count);
