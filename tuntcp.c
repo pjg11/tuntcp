@@ -11,7 +11,7 @@ uint16_t checksum(void *data, int len) {
   }
 
   if (len > 0)
-    sum += *(uint8_t *)data;
+    sum += *(uint8_t *)p;
 
   while (sum >> 16)
     sum = (sum & 0xffff) + (sum >> 16);
@@ -106,11 +106,12 @@ int udp(char *dst, uint16_t sport, uint16_t dport, char *data, int datalen,
 }
 
 int tcp(char *dst, uint16_t sport, uint16_t dport, uint8_t flags, uint32_t seq,
-        uint32_t ack, packet *p) {
+        uint32_t ack, char *data, int datalen, packet *p) {
 
   // TCP header
   tcphdr *t = &p->tcp.hdr;
-  int len = flags & TCP_SYN ? sizeof(*t) : sizeof(*t) - 4;
+  int len = flags & TCP_SYN ? 24 : sizeof(*t);
+  int optionslen = 0;
 
   t->sport = htons(sport);
   t->dport = htons(dport);
@@ -124,8 +125,13 @@ int tcp(char *dst, uint16_t sport, uint16_t dport, uint8_t flags, uint32_t seq,
 
   // Maximum Segment Size
   if (flags & TCP_SYN) {
-    memcpy(&t->options, "\x02\x04\x05\xb4", 4);
+    optionslen = 4;
+    memcpy(&p->tcp.data, "\x02\x04\x05\xb4", optionslen);
   }
+
+  // TCP Data
+  memcpy(&p->tcp.data + optionslen, data, datalen);
+  len += datalen;
 
   // IP header
   ip(len, PROTO_TCP, dst, &p->tcp.ip);
@@ -154,15 +160,17 @@ int conn(char *daddr, uint16_t dport, int tunfd, tcpconn *c) {
   return sizeof(*c);
 }
 
-int tcpsend(tcpconn *c, uint8_t flags) {
+int tcpsend(tcpconn *c, uint8_t flags, char *data, int datalen) {
   packet s;
   packet *send = &s;
-  int len = tcp(c->daddr, c->sport, c->dport, flags, c->seq, c->ack, send);
+  int len = tcp(c->daddr, c->sport, c->dport, flags, c->seq, c->ack, data,
+                datalen, send);
+
   hexdump(send, len);
   return write(c->tunfd, send, len);
 }
 
-void tcprecv(tcpconn *c, tcphdr *t) {
+tcphdr tcprecv(tcpconn *c) {
   packet r;
   packet *recv = &r;
   while (1) {
@@ -170,7 +178,7 @@ void tcprecv(tcpconn *c, tcphdr *t) {
     hexdump(recv, len);
 
     iphdr *i = &recv->tcp.ip;
-    t = &recv->tcp.hdr;
+    tcphdr *t = &recv->tcp.hdr;
 
     uint32_t saddr, daddr;
     inet_pton(AF_INET, c->saddr, &saddr);
@@ -178,8 +186,7 @@ void tcprecv(tcpconn *c, tcphdr *t) {
 
     if (i->src == daddr && i->dst == saddr && c->sport == ntohs(t->dport) &&
         c->dport == ntohs(t->sport)) {
-      memcpy(t, &recv->tcp.hdr, sizeof(*t));
-      break;
+      return *t;
     }
   }
 }

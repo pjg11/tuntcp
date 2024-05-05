@@ -74,7 +74,6 @@ typedef struct {
   uint16_t win;
   uint16_t checksum;
   uint16_t urp;
-  uint32_t options;
 } tcphdr;
 
 typedef enum tcpstate {
@@ -104,6 +103,7 @@ typedef struct {
 
   uint32_t seq;
   uint32_t ack;
+
 } tcpconn;
 
 typedef union {
@@ -127,7 +127,7 @@ typedef union {
   struct tcp {
     iphdr ip;
     tcphdr hdr;
-    char data[512];
+    char data[520];
   } tcp;
 
 } packet;
@@ -136,10 +136,10 @@ int echo(char *dst, uint16_t seq, char data[], int datalen, packet *p);
 int udp(char *dst, uint16_t sport, uint16_t dport, char *data, int datalen,
         packet *p);
 int tcp(char *dst, uint16_t sport, uint16_t dport, uint8_t flags, uint32_t seq,
-        uint32_t ack, packet *p);
+        uint32_t ack, char *data, int datalen, packet *p);
 int conn(char *daddr, uint16_t dport, int tunfd, tcpconn *c);
-int tcpsend(tcpconn *c, uint8_t flags);
-void tcprecv(tcpconn *c, tcphdr *t);
+int tcpsend(tcpconn *c, uint8_t flags, char *data, int datalen);
+tcphdr tcprecv(tcpconn *c);
 
 int openTun(char *dev);
 int timeoutread(int fd, void *buf, size_t count);
