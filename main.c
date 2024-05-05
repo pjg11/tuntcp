@@ -20,9 +20,7 @@ int main(void) {
   tcpsend(&c, TCP_ACK, "", 0);
   c.state = ESTABLISHED;
 
-  tcpsend(&c, TCP_PSH | TCP_ACK, data, sizeof(data) - 1);
-  c.seq += sizeof(data) - 1;
-
+  tcpsenddata(&c, data, sizeof(data) - 1);
   while ((len = timeoutread(tun, recv, 540)) > 0) {
     hexdump((char *)&recv->tcp + 40, len);
   }

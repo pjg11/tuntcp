@@ -76,7 +76,7 @@ typedef struct {
   uint16_t urp;
 } tcphdr;
 
-typedef enum tcpstate {
+typedef enum {
   LISTEN,
   SYN_SENT,
   SYN_RECEIVED,
@@ -103,7 +103,6 @@ typedef struct {
 
   uint32_t seq;
   uint32_t ack;
-
 } tcpconn;
 
 typedef union {
@@ -127,7 +126,7 @@ typedef union {
   struct tcp {
     iphdr ip;
     tcphdr hdr;
-    char data[520];
+    char data[1460]; // Includes options
   } tcp;
 
 } packet;
@@ -139,6 +138,7 @@ int tcp(char *dst, uint16_t sport, uint16_t dport, uint8_t flags, uint32_t seq,
         uint32_t ack, char *data, int datalen, packet *p);
 int conn(char *daddr, uint16_t dport, int tunfd, tcpconn *c);
 int tcpsend(tcpconn *c, uint8_t flags, char *data, int datalen);
+int tcpsenddata(tcpconn *c, char data[], int datalen);
 tcphdr tcprecv(tcpconn *c);
 
 int openTun(char *dev);

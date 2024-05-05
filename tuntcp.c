@@ -165,6 +165,7 @@ int tcpsend(tcpconn *c, uint8_t flags, char *data, int datalen) {
   packet *send = &s;
   int len = tcp(c->daddr, c->sport, c->dport, flags, c->seq, c->ack, data,
                 datalen, send);
+  c->seq += datalen;
 
   hexdump(send, len);
   return write(c->tunfd, send, len);
@@ -189,6 +190,21 @@ tcphdr tcprecv(tcpconn *c) {
       return *t;
     }
   }
+}
+
+int tcpsenddata(tcpconn *c, char data[], int datalen) {
+  int len = datalen, mss = 1460, seglen = 0;
+
+  while (len > 0) {
+    seglen = len > mss ? mss : len;
+
+    tcpsend(c, TCP_PSH | TCP_ACK, data, seglen);
+    c->seq += seglen;
+    len -= seglen;
+  }
+
+  // TODO: Implement retry
+  return 0;
 }
 
 int openTun(char *dev) {
