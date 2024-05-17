@@ -1,40 +1,28 @@
 #include "tuntcp.h"
 
 int main(void) {
-  int tun;
-  tcpconn c;
-  packet r;
-  packet *recv = &r;
-  char data[] = "GET / HTTP/1.1\r\nHost: examplecat.com\r\n\r\n";
+  int tun, sockfd, err, nbytes;
+  char buf[4096], data[] = "GET / HTTP/1.1\r\nHost: examplecat.com\r\n\r\n";
 
-  tun = openTun("tun0");
-  conn("208.94.117.43", 80, tun, &c);
+  tun = open_tun("tun0");
+  if (tun == -1)
+    perror("tuntcp: tun");
 
-  // SYN
-  tcpsend(&c, TCP_SYN, "", 0);
+  sockfd = tuntcp_socket(AF_INET, SOCK_STREAM, 0);
+  if (sockfd == -1)
+    perror("tuntcp: socket");
 
-  // SYNACK
-  tcprecv(&c, recv);
-  tcphdr synack = recv->tcp.hdr;
-  c.seq = ntohl(synack.ack);
-  c.ack = ntohl(synack.seq) + 1;
+  err = tuntcp_connect(sockfd, tun, "208.94.117.43", 80);
+  if (err == -1)
+    perror("tuntcp: connect");
 
-  // ACK
-  tcpsend(&c, TCP_ACK, "", 0);
-  c.state = ESTABLISHED;
+  tuntcp_send(sockfd, data, strlen(data));
 
-  // Sending GET request
-  tcpsenddata(&c, data, sizeof(data) - 1);
-
-  // Receiving response
-  while (c.state != CLOSED && c.rcvd.available == 0) {
-    tcphandle(&c);
+  while ((nbytes = tuntcp_recv(sockfd, buf, sizeof(buf))) > 0) {
+    printf("%s", buf);
   }
-  printf("%s", c.rcvd.buf);
 
-  // Abrupt close connection
-  tcpsend(&c, TCP_RST, "", 0);
-
+  tuntcp_close(sockfd);
   close(tun);
   return 0;
 }

@@ -1,5 +1,82 @@
 #include "tuntcp.h"
 
+tcpconn sockets[1];
+
+int open_tun(char *dev) {
+  int fd, err;
+  struct ifreq ifr;
+
+  if ((fd = open("/dev/net/tun", O_RDWR)) < 0)
+    return -1;
+
+  ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
+  strncpy(ifr.ifr_name, dev, IFNAMSIZ);
+
+  if ((err = ioctl(fd, TUNSETIFF, (void *)&ifr)) < 0) {
+    close(fd);
+    return err;
+  }
+  return fd;
+}
+
+// https://stackoverflow.com/a/2918709
+int timeoutread(int fd, void *buf, size_t count) {
+  int rv;
+  fd_set set;
+  struct timeval tv;
+
+  FD_ZERO(&set);
+  FD_SET(fd, &set);
+
+  tv.tv_sec = 5;
+  tv.tv_usec = 0;
+  rv = select(fd + 1, &set, NULL, NULL, &tv);
+
+  if (rv == -1)
+    perror("select");
+  else if (rv == 0)
+    printf("timeout\n");
+  else
+    return read(fd, buf, count);
+
+  return -1;
+}
+
+// https://github.com/pandax381/microps/blob/ac3747f68a6fd590443d028b4eaf5d97c4c58e49/util.c#L38
+void hexdump(const void *data, int nbytes) {
+  unsigned char *src;
+  int offset, index;
+
+  src = (unsigned char *)data;
+  for (offset = 0; offset < (int)nbytes; offset += 16) {
+    printf("%08x ", offset);
+    for (index = 0; index < 16; index++) {
+      if ((offset + index) % 8 == 0)
+        printf(" ");
+
+      if (offset + index < (int)nbytes) {
+        printf("%02x ", 0xff & src[offset + index]);
+      } else {
+        printf("   ");
+      }
+    }
+    printf(" |");
+    for (index = 0; index < 16; index++) {
+      if (offset + index < (int)nbytes) {
+        if (isascii(src[offset + index]) && isprint(src[offset + index])) {
+          printf("%c", src[offset + index]);
+        } else {
+          printf(".");
+        }
+      } else {
+        printf(" ");
+      }
+    }
+    printf("|\n");
+  }
+  printf("\n");
+}
+
 // https://www.rfc-editor.org/rfc/rfc1071#section-4.1
 uint16_t checksum(void *data, int len) {
   register uint32_t sum = 0;
@@ -164,8 +241,7 @@ int conn(char *daddr, uint16_t dport, int tunfd, tcpconn *c) {
 }
 
 int tcpsend(tcpconn *c, uint8_t flags, char *data, int datalen) {
-  packet s;
-  packet *send = &s;
+  packet s, *send = &s;
   int len = tcp(c->daddr, c->sport, c->dport, flags, c->seq, c->ack, data,
                 datalen, send);
 
@@ -205,97 +281,77 @@ int tcpsenddata(tcpconn *c, char data[], int datalen) {
   return 0;
 }
 
-void tcphandle(tcpconn *c) {
+int tcphandle(tcpconn *c) {
   packet r;
   int len = tcprecv(c, &r);
   int datalen = len - sizeof(r.tcp.ip) - sizeof(r.tcp.hdr);
 
   if (ntohl(r.tcp.hdr.seq) != c->ack)
-    return;
+    return 0;
 
   if (c->state == ESTABLISHED && datalen > 0) {
     memcpy(c->rcvd.buf + c->rcvd.available, r.tcp.data, datalen);
     c->rcvd.available += datalen;
     c->ack = ntohl(r.tcp.hdr.seq) + datalen;
     tcpsend(c, TCP_ACK, "", 0);
+    return datalen;
   }
 
-  if (r.tcp.hdr.flags & TCP_FIN) {
+  if (r.tcp.hdr.flags & TCP_FIN)
     c->state = CLOSED;
-  }
+
+  return 0;
 }
 
-int openTun(char *dev) {
-  int fd, err;
-  struct ifreq ifr;
-
-  if ((fd = open("/dev/net/tun", O_RDWR)) < 0)
-    return 1;
-
-  ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
-  strncpy(ifr.ifr_name, dev, IFNAMSIZ);
-
-  if ((err = ioctl(fd, TUNSETIFF, (void *)&ifr)) < 0) {
-    close(fd);
-    return err;
+int tcprecvdata(tcpconn *c, char data[], int datalen) {
+  int nbytes = 0;
+  while (c->state != CLOSED && c->rcvd.available == 0) {
+    nbytes += tcphandle(c);
   }
-  return fd;
+  memcpy(data, c->rcvd.buf + c->rcvd.readptr, datalen);
+  c->rcvd.readptr += datalen;
+  return nbytes;
 }
 
-// https://stackoverflow.com/a/2918709
-int timeoutread(int fd, void *buf, size_t count) {
-  int rv;
-  fd_set set;
-  struct timeval tv;
-
-  FD_ZERO(&set);
-  FD_SET(fd, &set);
-
-  tv.tv_sec = 5;
-  tv.tv_usec = 0;
-  rv = select(fd + 1, &set, NULL, NULL, &tv);
-
-  if (rv == -1)
-    perror("select");
-  else if (rv == 0)
-    printf("timeout\n");
-  else
-    return read(fd, buf, count);
-
-  return -1;
+int tuntcp_socket(int domain, int type, int protocol) {
+  // TODO: Implement multiple sockets, return 1 for now
+  return 0;
 }
 
-// https://github.com/pandax381/microps/blob/ac3747f68a6fd590443d028b4eaf5d97c4c58e49/util.c#L38
-void hexdump(const void *data, int nbytes) {
-  unsigned char *src;
-  int offset, index;
+int tuntcp_connect(int sockfd, int tunfd, char *ip, uint16_t port) {
+  packet r, *recv = &r;
+  tcpconn *c = &sockets[sockfd];
+  conn(ip, port, tunfd, c);
 
-  src = (unsigned char *)data;
-  for (offset = 0; offset < (int)nbytes; offset += 16) {
-    printf("%08x ", offset);
-    for (index = 0; index < 16; index++) {
-      if ((offset + index) % 8 == 0)
-        printf(" ");
+  // SYN
+  tcpsend(c, TCP_SYN, "", 0);
 
-      if (offset + index < (int)nbytes) {
-        printf("%02x ", 0xff & src[offset + index]);
-      } else {
-        printf("   ");
-      }
-    }
-    printf(" |");
-    for (index = 0; index < 16; index++) {
-      if (offset + index < (int)nbytes) {
-        if (isascii(src[offset + index]) && isprint(src[offset + index])) {
-          printf("%c", src[offset + index]);
-        } else {
-          printf(".");
-        }
-      } else {
-        printf(" ");
-      }
-    }
-    printf("|\n");
-  }
-  printf("\n");
+  // SYNACK
+  tcprecv(c, recv);
+  tcphdr synack = recv->tcp.hdr;
+  c->seq = ntohl(synack.ack);
+  c->ack = ntohl(synack.seq) + 1;
+
+  // ACK
+  tcpsend(c, TCP_ACK, "", 0);
+  c->state = ESTABLISHED;
+
+  return 0;
+}
+
+ssize_t tuntcp_send(int sockfd, void *buf, size_t len) {
+  tcpconn *c = &sockets[sockfd];
+  return tcpsenddata(c, buf, len);
+}
+
+ssize_t tuntcp_recv(int sockfd, void *buf, size_t len) {
+  tcpconn *c = &sockets[sockfd];
+  return tcprecvdata(c, buf, len);
+}
+
+int tuntcp_close(int sockfd) {
+  // TODO: Implement proper connection closing
+  tcpconn *c = &sockets[sockfd];
+  tcpsend(c, TCP_RST, "", 0);
+  return 0;
 }

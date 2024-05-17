@@ -139,18 +139,12 @@ typedef union {
 
 } packet;
 
-int echo(char *dst, uint16_t seq, char data[], int datalen, packet *p);
-int udp(char *dst, uint16_t sport, uint16_t dport, char *data, int datalen,
-        packet *p);
-int tcp(char *dst, uint16_t sport, uint16_t dport, uint8_t flags, uint32_t seq,
-        uint32_t ack, char *data, int datalen, packet *p);
-int conn(char *daddr, uint16_t dport, int tunfd, tcpconn *c);
-int tcpsend(tcpconn *c, uint8_t flags, char *data, int datalen);
-int tcpsenddata(tcpconn *c, char data[], int datalen);
-int tcprecv(tcpconn *c, packet *recv);
-void tcphandle(tcpconn *c);
+int tuntcp_socket(int domain, int type, int protocol);
+int tuntcp_connect(int sockfd, int tunfd, char *ip, uint16_t port);
+ssize_t tuntcp_send(int sockfd, void *buf, size_t len);
+ssize_t tuntcp_recv(int sockfd, void *buf, size_t len);
+int tuntcp_close(int sockfd);
 
-int openTun(char *dev);
-int timeoutread(int fd, void *buf, size_t count);
+int open_tun(char *dev);
 void hexdump(const void *data, int len);
 #endif // TUNTCP_H
