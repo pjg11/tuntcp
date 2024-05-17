@@ -157,6 +157,9 @@ int conn(char *daddr, uint16_t dport, int tunfd, tcpconn *c) {
   c->seq = (uint32_t)rand();
   c->ack = 0;
 
+  c->rcvd.readptr = 0;
+  c->rcvd.available = 0;
+
   return sizeof(*c);
 }
 
@@ -165,29 +168,26 @@ int tcpsend(tcpconn *c, uint8_t flags, char *data, int datalen) {
   packet *send = &s;
   int len = tcp(c->daddr, c->sport, c->dport, flags, c->seq, c->ack, data,
                 datalen, send);
-  c->seq += datalen;
 
-  hexdump(send, len);
+  c->seq += datalen;
   return write(c->tunfd, send, len);
 }
 
-tcphdr tcprecv(tcpconn *c) {
-  packet r;
-  packet *recv = &r;
+int tcprecv(tcpconn *c, packet *recv) {
   while (1) {
-    int len = timeoutread(c->tunfd, recv, 540);
-    hexdump(recv, len);
+    uint32_t saddr, daddr;
+
+    int len = timeoutread(c->tunfd, recv, sizeof(*recv));
 
     iphdr *i = &recv->tcp.ip;
     tcphdr *t = &recv->tcp.hdr;
 
-    uint32_t saddr, daddr;
     inet_pton(AF_INET, c->saddr, &saddr);
     inet_pton(AF_INET, c->daddr, &daddr);
 
     if (i->src == daddr && i->dst == saddr && c->sport == ntohs(t->dport) &&
         c->dport == ntohs(t->sport)) {
-      return *t;
+      return len;
     }
   }
 }
@@ -197,14 +197,32 @@ int tcpsenddata(tcpconn *c, char data[], int datalen) {
 
   while (len > 0) {
     seglen = len > mss ? mss : len;
-
     tcpsend(c, TCP_PSH | TCP_ACK, data, seglen);
-    c->seq += seglen;
     len -= seglen;
   }
 
   // TODO: Implement retry
   return 0;
+}
+
+void tcphandle(tcpconn *c) {
+  packet r;
+  int len = tcprecv(c, &r);
+  int datalen = len - sizeof(r.tcp.ip) - sizeof(r.tcp.hdr);
+
+  if (ntohl(r.tcp.hdr.seq) != c->ack)
+    return;
+
+  if (c->state == ESTABLISHED && datalen > 0) {
+    memcpy(c->rcvd.buf + c->rcvd.available, r.tcp.data, datalen);
+    c->rcvd.available += datalen;
+    c->ack = ntohl(r.tcp.hdr.seq) + datalen;
+    tcpsend(c, TCP_ACK, "", 0);
+  }
+
+  if (r.tcp.hdr.flags & TCP_FIN) {
+    c->state = CLOSED;
+  }
 }
 
 int openTun(char *dev) {

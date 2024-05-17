@@ -90,6 +90,12 @@ typedef enum {
   CLOSED
 } tcpstate;
 
+typedef struct {
+  char buf[65535];
+  int readptr;   // number of bytes read
+  int available; // number of bytes written
+} tcpdata;
+
 // All values stored in Host Order
 typedef struct {
   int tunfd;
@@ -103,6 +109,8 @@ typedef struct {
 
   uint32_t seq;
   uint32_t ack;
+
+  tcpdata rcvd;
 } tcpconn;
 
 typedef union {
@@ -139,7 +147,8 @@ int tcp(char *dst, uint16_t sport, uint16_t dport, uint8_t flags, uint32_t seq,
 int conn(char *daddr, uint16_t dport, int tunfd, tcpconn *c);
 int tcpsend(tcpconn *c, uint8_t flags, char *data, int datalen);
 int tcpsenddata(tcpconn *c, char data[], int datalen);
-tcphdr tcprecv(tcpconn *c);
+int tcprecv(tcpconn *c, packet *recv);
+void tcphandle(tcpconn *c);
 
 int openTun(char *dev);
 int timeoutread(int fd, void *buf, size_t count);
