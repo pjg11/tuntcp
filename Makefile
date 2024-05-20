@@ -6,5 +6,8 @@ tuntcp: main.c tuntcp.o
 
 ping: ping.o tuntcp.o
 
+curl: curl.o tuntcp.o
+
+.PHONY: clean
 clean:
-	rm -f tuntcp ping *.o
+	rm -f tuntcp ping curl *.o
