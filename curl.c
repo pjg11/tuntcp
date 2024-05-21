@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
   if (sockfd == -1)
     perror("tuntcp: socket");
 
-  err = tuntcp_connect(sockfd, tun, ipstr, atoi(port));
+  err = tuntcp_connect(sockfd, tun, res->ai_addr, res->ai_addrlen);
   if (err == -1)
     perror("tuntcp: connect");
 

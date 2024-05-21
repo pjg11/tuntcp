@@ -99,22 +99,22 @@ uint16_t checksum(void *data, int len) {
 // TCP/UDP checksum
 uint16_t l4checksum(void *data, int len) {
   packet p;
-  iphdr i = *(iphdr *)data;
+  iphdr *i = (iphdr *)data;
 
   // Pseudoheader
-  p.pseudo.ip.src = i.src;
-  p.pseudo.ip.dst = i.dst;
+  p.pseudo.ip.src = i->saddr;
+  p.pseudo.ip.dst = i->daddr;
   p.pseudo.ip.zero = 0;
-  p.pseudo.ip.proto = i.proto;
+  p.pseudo.ip.proto = i->proto;
   p.pseudo.ip.plen = htons(len);
 
   // TCP/UDP header + data
-  memcpy(p.pseudo.data, (char *)data + sizeof(i), len);
+  memcpy(p.pseudo.data, (char *)data + sizeof(*i), len);
 
   return checksum(&p, sizeof(p.pseudo.ip) + len);
 }
 
-int ip(int datalen, uint8_t protocol, char *daddr, iphdr *i) {
+int ip(int datalen, uint8_t protocol, tcpconn *c, iphdr *i) {
   int len = sizeof(*i);
 
   i->version_ihl = 4 << 4 | 5;
@@ -125,14 +125,14 @@ int ip(int datalen, uint8_t protocol, char *daddr, iphdr *i) {
   i->ttl = 64;
   i->proto = protocol;
   i->checksum = 0;
-  inet_pton(AF_INET, "192.0.2.2", &i->src);
-  inet_pton(AF_INET, daddr, &i->dst);
+  i->saddr = htonl(c->saddr);
+  i->daddr = htonl(c->daddr);
 
   i->checksum = checksum(i, len);
   return len;
 }
 
-int echo(char *dst, uint16_t seq, char data[], int datalen, packet *p) {
+int echo(uint16_t seq, char data[], int datalen, tcpconn *c, packet *p) {
   int len;
 
   // Echo request
@@ -152,19 +152,18 @@ int echo(char *dst, uint16_t seq, char data[], int datalen, packet *p) {
   e->checksum = checksum((char *)p + sizeof(p->ping.ip), len);
 
   // IP header
-  ip(len, PROTO_ICMP, dst, &p->ping.ip);
+  ip(len, PROTO_ICMP, c, &p->ping.ip);
 
   return sizeof(p->ping.ip) + len;
 }
 
-int udp(char *dst, uint16_t sport, uint16_t dport, char *data, int datalen,
-        packet *p) {
+int udp(char *data, int datalen, tcpconn *c, packet *p) {
   int len;
 
   // UDP header
   udphdr *u = &p->udp.hdr;
-  u->sport = htons(sport);
-  u->dport = htons(dport);
+  u->sport = htons(c->sport);
+  u->dport = htons(c->dport);
   u->len = htons(8 + datalen);
   u->checksum = 0;
   len = sizeof(*u);
@@ -174,7 +173,7 @@ int udp(char *dst, uint16_t sport, uint16_t dport, char *data, int datalen,
   len += datalen;
 
   // IP header
-  ip(len, PROTO_UDP, dst, &p->udp.ip);
+  ip(len, PROTO_UDP, c, &p->udp.ip);
 
   // UDP Checksum
   u->checksum = l4checksum(&p->udp, len);
@@ -182,18 +181,17 @@ int udp(char *dst, uint16_t sport, uint16_t dport, char *data, int datalen,
   return sizeof(p->udp.ip) + len;
 }
 
-int tcp(char *dst, uint16_t sport, uint16_t dport, uint8_t flags, uint32_t seq,
-        uint32_t ack, char *data, int datalen, packet *p) {
+int tcp(uint8_t flags, char *data, int datalen, tcpconn *c, packet *p) {
 
   // TCP header
   tcphdr *t = &p->tcp.hdr;
   int len = flags & TCP_SYN ? 24 : sizeof(*t);
   int optionslen = 0;
 
-  t->sport = htons(sport);
-  t->dport = htons(dport);
-  t->seq = htonl(seq);
-  t->ack = htonl(ack);
+  t->sport = htons(c->sport);
+  t->dport = htons(c->dport);
+  t->seq = htonl(c->seq);
+  t->ack = htonl(c->ack);
   t->rsvd_offset = (len / 4) << 4;
   t->flags = flags;
   t->win = htons(65535);
@@ -211,7 +209,7 @@ int tcp(char *dst, uint16_t sport, uint16_t dport, uint8_t flags, uint32_t seq,
   len += datalen;
 
   // IP header
-  ip(len, PROTO_TCP, dst, &p->tcp.ip);
+  ip(len, PROTO_TCP, c, &p->tcp.ip);
 
   // TCP Checksum
   t->checksum = l4checksum(&p->tcp, len);
@@ -219,17 +217,19 @@ int tcp(char *dst, uint16_t sport, uint16_t dport, uint8_t flags, uint32_t seq,
   return sizeof(p->tcp.ip) + len;
 }
 
-int conn(char *daddr, uint16_t dport, int tunfd, tcpconn *c) {
+int conn(struct sockaddr *addr, int tunfd, tcpconn *c) {
+  struct sockaddr_in *address = (struct sockaddr_in *)addr;
   srand(time(NULL));
 
   c->tunfd = tunfd;
   c->state = CLOSED;
 
-  c->saddr = "192.0.2.2";
+  inet_pton(AF_INET, "192.0.2.2", &c->saddr);
+  c->saddr = ntohl(c->saddr);
   c->sport = (uint16_t)rand();
 
-  c->daddr = daddr;
-  c->dport = dport;
+  c->daddr = ntohl(address->sin_addr.s_addr);
+  c->dport = ntohs(address->sin_port);
 
   c->seq = (uint32_t)rand();
   c->ack = 0;
@@ -242,8 +242,7 @@ int conn(char *daddr, uint16_t dport, int tunfd, tcpconn *c) {
 
 int tcpsend(tcpconn *c, uint8_t flags, char *data, int datalen) {
   packet s, *send = &s;
-  int len = tcp(c->daddr, c->sport, c->dport, flags, c->seq, c->ack, data,
-                datalen, send);
+  int len = tcp(flags, data, datalen, c, send);
 
   c->seq += datalen;
   return write(c->tunfd, send, len);
@@ -251,18 +250,13 @@ int tcpsend(tcpconn *c, uint8_t flags, char *data, int datalen) {
 
 int tcprecv(tcpconn *c, packet *recv) {
   while (1) {
-    uint32_t saddr, daddr;
-
     int len = timeoutread(c->tunfd, recv, sizeof(*recv));
 
     iphdr *i = &recv->tcp.ip;
     tcphdr *t = &recv->tcp.hdr;
 
-    inet_pton(AF_INET, c->saddr, &saddr);
-    inet_pton(AF_INET, c->daddr, &daddr);
-
-    if (i->src == daddr && i->dst == saddr && c->sport == ntohs(t->dport) &&
-        c->dport == ntohs(t->sport)) {
+    if (ntohl(i->saddr) == c->daddr && ntohl(i->daddr) == c->saddr &&
+        c->sport == ntohs(t->dport) && c->dport == ntohs(t->sport)) {
       return len;
     }
   }
@@ -318,10 +312,10 @@ int tuntcp_socket(int domain, int type, int protocol) {
   return 0;
 }
 
-int tuntcp_connect(int sockfd, int tunfd, char *ip, uint16_t port) {
+int tuntcp_connect(int sockfd, int tunfd, struct sockaddr *addr, int addrlen) {
   packet r, *recv = &r;
   tcpconn *c = &sockets[sockfd];
-  conn(ip, port, tunfd, c);
+  conn(addr, tunfd, c);
 
   // SYN
   tcpsend(c, TCP_SYN, "", 0);

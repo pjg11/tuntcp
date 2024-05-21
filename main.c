@@ -3,6 +3,7 @@
 int main(void) {
   int tun, sockfd, err, nbytes;
   char buf[4096], data[] = "GET / HTTP/1.1\r\nHost: examplecat.com\r\n\r\n";
+  struct sockaddr_in addr;
 
   tun = open_tun("tun0");
   if (tun == -1)
@@ -12,7 +13,11 @@ int main(void) {
   if (sockfd == -1)
     perror("tuntcp: socket");
 
-  err = tuntcp_connect(sockfd, tun, "208.94.117.43", 80);
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(80);
+  inet_pton(AF_INET, "208.94.117.43", &addr.sin_addr.s_addr);
+
+  err = tuntcp_connect(sockfd, tun, (struct sockaddr *)&addr, sizeof(addr));
   if (err == -1)
     perror("tuntcp: connect");
 

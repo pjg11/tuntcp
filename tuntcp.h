@@ -38,8 +38,8 @@ typedef struct {
   uint8_t ttl;
   uint8_t proto;
   uint16_t checksum;
-  uint32_t src;
-  uint32_t dst;
+  uint32_t saddr;
+  uint32_t daddr;
 } iphdr;
 
 typedef struct {
@@ -102,10 +102,10 @@ typedef struct {
   int tunfd;
   tcpstate state;
 
-  char *saddr;
+  uint32_t saddr;
   uint16_t sport;
 
-  char *daddr;
+  uint32_t daddr;
   uint16_t dport;
 
   uint32_t seq;
@@ -141,7 +141,7 @@ typedef union {
 } packet;
 
 int tuntcp_socket(int domain, int type, int protocol);
-int tuntcp_connect(int sockfd, int tunfd, char *ip, uint16_t port);
+int tuntcp_connect(int sockfd, int tunfd, struct sockaddr *addr, int addrlen);
 ssize_t tuntcp_send(int sockfd, void *buf, size_t len);
 ssize_t tuntcp_recv(int sockfd, void *buf, size_t len);
 int tuntcp_close(int sockfd);
